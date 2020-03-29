@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import rospy
+from math import *
 from geometry_msgs.msg import *
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion
@@ -96,6 +97,39 @@ class ThymioController:
             )
         )
 
+    def euclidean_distance(self, new_pose, estimated_pose):
+        """
+        :param goal_pose
+        :return: Euclidean distance between current pose and the goal pose
+        """
+        return sqrt(pow((new_pose.x - estimated_pose.x), 2) +
+                    pow((new_pose.y - estimated_pose.y), 2))
+
+    def linear_vel(self, new_pose, estimated_pose, constant=4):
+        """
+        :param goal_pose
+        :param constant
+        :return: clipped linear velocity
+        """
+        velocity = constant * self.euclidean_distance(new_pose, estimated_pose)
+        return min(max(-5, velocity), 5)
+
+    def angle_difference(self, new_pose, estimated_pose):
+        """
+        :param goal_pose:
+        :return: the difference between the current angle and the goal angle
+        """
+        return atan2(sin(new_pose.theta - estimated_pose.theta), cos(new_pose.theta - estimated_pose.theta))
+
+    def angular_vel(self, new_pose, estimated_pose, constant=12):
+        """
+        :param goal_pose:
+        :param constant:
+        :return: the angular velocity computed using the angle difference
+        """
+        return constant * self.angle_difference(new_pose, estimated_pose)
+
+    # FIXME
     def run(self):
         """Controls the Thymio."""
 
