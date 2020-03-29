@@ -133,14 +133,35 @@ class ThymioController:
     def run(self):
         """Controls the Thymio."""
 
+        step = rospy.Time(nsecs=16666667)  # 1/60 sec
+        t0 = rospy.Time.now()
+        estimated_pose = Pose(0, 0, 0)
+
         while not rospy.is_shutdown():
-            # decide control action
-            velocity = self.get_control()
+            t = rospy.Time.now() - t0
+            t_prime = t + step
+
+            constant = 1
+            new_x = constant * sin(t_prime) * cos(t_prime)
+            new_y = constant * sin(t_prime)
+            dx = constant * (cos(t_prime) ** 2 - sin(t_prime) ** 2)
+            dy = constant * cos(t_prime)
+            new_theta = atan2(dy, dx)
+
+            new_pose = Pose(new_x, new_y, new_theta)
+
+            # velocity = self.get_control()
+            # self.velocity_publisher.publish(velocity)
+
+            self.vel_msg.linear.x = self.linear_vel(new_pose, estimated_pose) / step  # Linear velocity in the x-axis.
+            self.vel_msg.angular.z = self.angular_vel(new_pose, estimated_pose) / step # Angular velocity in the z-axis.
 
             # publish velocity message
-            self.velocity_publisher.publish(velocity)
+            self.velocity_publisher.publish(self.vel_msg)
 
             self.sleep()
+
+            estimated_pose = new_pose
 
     def sleep(self):
         """Sleep until next step and if rospy is shutdown launch an exception"""
