@@ -21,7 +21,7 @@
 $ git clone https://github.com/GiorgiaAuroraAdorni/mighty-controller
 ```
 
-The ececution of **Gazebo** with the simulated Thymio can be started by running:
+The execution of **Gazebo** with the simulated Thymio can be started by running:
 
 ```sh
 $ roslaunch thymio_course_skeleton thymio_gazebo_bringup.launch name:=thymio10 world:=empty 
