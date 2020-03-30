@@ -33,13 +33,12 @@ class ThymioController:
         self.vel_msg = Twist()
 
         # set node update frequency in Hz
-        self.rate = rospy.Rate(60)
+        self.rate = rospy.Rate(20)
 
         # tell ros to call stop when the program is terminated
         rospy.on_shutdown(self.stop)
 
-    @staticmethod
-    def human_readable_pose2d(pose):
+    def human_readable_pose2d(self, pose):
         """Converts pose message to a human readable pose tuple.
         :param pose:
         :return:
@@ -78,8 +77,7 @@ class ThymioController:
             msg=self.name + ' (%.3f, %.3f, %.3f) ' % printable_pose  # message
         )
 
-    @staticmethod
-    def get_control():
+    def get_control(self):
         """
 
         :return:
@@ -99,67 +97,75 @@ class ThymioController:
 
     def euclidean_distance(self, new_pose, estimated_pose):
         """
-        :param goal_pose
+        :param new_pose:
+        :param estimated_pose:
         :return: Euclidean distance between current pose and the goal pose
         """
         return sqrt(pow((new_pose.x - estimated_pose.x), 2) +
                     pow((new_pose.y - estimated_pose.y), 2))
 
-    def linear_vel(self, new_pose, estimated_pose, constant=4):
+    def linear_vel(self, new_pose, estimated_pose):
         """
         :param goal_pose
         :param constant
         :return: clipped linear velocity
         """
-        velocity = constant * self.euclidean_distance(new_pose, estimated_pose)
-        return min(max(-5, velocity), 5)
+        velocity = self.euclidean_distance(new_pose, estimated_pose)
+        return velocity
 
-    def angle_difference(self, new_pose, estimated_pose):
+    def angular_vel(self, new_pose, estimated_pose):
         """
-        :param goal_pose:
-        :return: the difference between the current angle and the goal angle
+
+        :param new_pose:
+        :param estimated_pose:
+        :return: the angular velocity computed using the angle difference
         """
         return atan2(sin(new_pose.theta - estimated_pose.theta), cos(new_pose.theta - estimated_pose.theta))
 
-    def angular_vel(self, new_pose, estimated_pose, constant=12):
+    def compute_pose(self, next_progress, radius):
         """
-        :param goal_pose:
-        :param constant:
-        :return: the angular velocity computed using the angle difference
+
+        :param next_progress:
+        :param radius:
+        :return:
         """
-        return constant * self.angle_difference(new_pose, estimated_pose)
+        next_x = radius * sin(next_progress) * cos(next_progress)
+        next_y = radius * sin(next_progress)
+
+        next_dx = radius * (cos(next_progress) ** 2 - sin(next_progress) ** 2)
+        next_dy = radius * cos(next_progress)
+        next_theta = atan2(next_dy, next_dx)
+
+        pose = Pose2D(next_x, next_y, next_theta)
+
+        return pose
 
     # FIXME
     def run(self):
         """Controls the Thymio."""
 
-        step = rospy.Time(nsecs=16666667)  # 1/60 sec
-        t0 = rospy.Time.now()
-        estimated_pose = Pose(0, 0, 0)
+        radius = 2
+        period = 30  # TODO: define constant velocity, not constant period
+        step = rospy.Duration.from_sec(1.0 / 20.0)  # 1/60 sec
+
+        start_time = rospy.Time.now()
+        estimated_pose = None
 
         while not rospy.is_shutdown():
-            t = rospy.Time.now() - t0
-            t_prime = t + step
+            elapsed_time = rospy.Time.now() - start_time
 
-            constant = 1
-            new_x = constant * sin(t_prime) * cos(t_prime)
-            new_y = constant * sin(t_prime)
-            dx = constant * (cos(t_prime) ** 2 - sin(t_prime) ** 2)
-            dy = constant * cos(t_prime)
-            new_theta = atan2(dy, dx)
+            next_time = (elapsed_time + step).to_sec()
+            next_progress = ((2 * pi) / period) * next_time
 
-            new_pose = Pose(new_x, new_y, new_theta)
+            new_pose = self.compute_pose(next_progress, radius)
 
-            # velocity = self.get_control()
-            # self.velocity_publisher.publish(velocity)
+            if estimated_pose is not None:
+                self.vel_msg.linear.x = self.linear_vel(new_pose, estimated_pose) / step.to_sec()
+                self.vel_msg.angular.z = self.angular_vel(new_pose, estimated_pose) / step.to_sec()
 
-            self.vel_msg.linear.x = self.linear_vel(new_pose, estimated_pose) / step  # Linear velocity in the x-axis.
-            self.vel_msg.angular.z = self.angular_vel(new_pose, estimated_pose) / step # Angular velocity in the z-axis.
+                self.velocity_publisher.publish(self.vel_msg)
 
-            # publish velocity message
-            self.velocity_publisher.publish(self.vel_msg)
-
-            self.sleep()
+                self.sleep()
 
             estimated_pose = new_pose
 
