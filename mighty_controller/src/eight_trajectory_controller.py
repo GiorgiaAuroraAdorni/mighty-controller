@@ -32,14 +32,18 @@ class ThymioController:
         # initialize linear and angular velocities to 0
         self.vel_msg = Twist()
 
-        # set node update frequency in Hz
-        self.rate = rospy.Rate(60)
-
         # tell ros to call stop when the program is terminated
         rospy.on_shutdown(self.stop)
 
-    @staticmethod
-    def human_readable_pose2d(pose):
+        # set node update frequency in Hz
+        frequency = 20.0
+        self.rate = rospy.Rate(frequency)
+        self.step = rospy.Duration.from_sec(1.0 / frequency)  # 1/60 sec
+
+        self.radius = 2
+        self.period = 15
+
+    def human_readable_pose2d(self, pose):
         """Converts pose message to a human readable pose tuple.
         :param pose:
         :return:
@@ -78,69 +82,86 @@ class ThymioController:
             msg=self.name + ' (%.3f, %.3f, %.3f) ' % printable_pose  # message
         )
 
-    @staticmethod
-    def get_control():
-        """
-
-        :return:
-        """
-        return Twist(
-            linear=Vector3(
-                .2,  # moves forward .2 m/s
-                .0,
-                .0,
-            ),
-            angular=Vector3(
-                .0,
-                .0,
-                .0
-            )
-        )
-
     def euclidean_distance(self, new_pose, estimated_pose):
         """
-        :param goal_pose
+        :param new_pose:
+        :param estimated_pose:
         :return: Euclidean distance between current pose and the goal pose
         """
         return sqrt(pow((new_pose.x - estimated_pose.x), 2) +
                     pow((new_pose.y - estimated_pose.y), 2))
 
-    def linear_vel(self, new_pose, estimated_pose, constant=4):
+    def linear_vel(self, new_pose, estimated_pose):
         """
         :param goal_pose
         :param constant
         :return: clipped linear velocity
         """
-        velocity = constant * self.euclidean_distance(new_pose, estimated_pose)
-        return min(max(-5, velocity), 5)
+        distance = self.euclidean_distance(new_pose, estimated_pose)
+        velocity = distance / self.step.to_sec()
 
-    def angle_difference(self, new_pose, estimated_pose):
+        return velocity
+
+    def angular_difference(self, estimated_pose, new_pose):
         """
-        :param goal_pose:
-        :return: the difference between the current angle and the goal angle
+
+        :param estimated_pose:
+        :param new_pose:
+        :return: Angle difference
         """
         return atan2(sin(new_pose.theta - estimated_pose.theta), cos(new_pose.theta - estimated_pose.theta))
 
-    def angular_vel(self, new_pose, estimated_pose, constant=12):
+    def angular_vel(self, new_pose, estimated_pose):
         """
-        :param goal_pose:
-        :param constant:
+
+        :param new_pose:
+        :param estimated_pose:
         :return: the angular velocity computed using the angle difference
         """
-        return constant * self.angle_difference(new_pose, estimated_pose)
+        ang_difference = self.angular_difference(estimated_pose, new_pose)
+        velocity = ang_difference / self.step.to_sec()
 
-    # FIXME
+        return velocity
+
+    def compute_pose(self, time_delta):
+        """
+        :param time_delta:
+        :return:
+        """
+        progress = ((2 * pi) / self.period) * time_delta #- pi / 2.0  # start from the centre of the eight
+
+        x = self.radius * sin(progress) * cos(progress)
+        y = self.radius * sin(progress)
+
+        dx = self.radius * (cos(progress) ** 2 - sin(progress) ** 2)
+        dy = self.radius * cos(progress)
+        theta = atan2(dy, dx)
+
+        pose = Pose2D(x, y, theta)
+
+        return pose
+
     def run(self):
         """Controls the Thymio."""
+        start_time = rospy.Time.now()
+        estimated_pose = None
 
         while not rospy.is_shutdown():
-            # decide control action
-            velocity = self.get_control()
+            elapsed_time = rospy.Time.now() - start_time
 
-            # publish velocity message
-            self.velocity_publisher.publish(velocity)
+            next_time = (elapsed_time + self.step).to_sec()
 
-            self.sleep()
+            next_pose = self.compute_pose(next_time)
+
+            if estimated_pose is not None:
+                self.vel_msg.linear.x = self.linear_vel(next_pose, estimated_pose)
+                self.vel_msg.angular.z = self.angular_vel(next_pose, estimated_pose)
+
+                self.velocity_publisher.publish(self.vel_msg)
+
+                self.sleep()
+
+            estimated_pose = next_pose
 
     def sleep(self):
         """Sleep until next step and if rospy is shutdown launch an exception"""
