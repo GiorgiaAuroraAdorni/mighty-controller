@@ -40,8 +40,8 @@ class ThymioController:
         self.rate = rospy.Rate(frequency)
         self.step = rospy.Duration.from_sec(1.0 / frequency)  # 1/60 sec
 
-        self.radius = 2
-        self.period = 15
+        self.radius = 1
+        self.period = 30
 
     def human_readable_pose2d(self, pose):
         """Converts pose message to a human readable pose tuple.
@@ -128,7 +128,8 @@ class ThymioController:
         :param time_delta:
         :return:
         """
-        progress = ((2 * pi) / self.period) * time_delta #- pi / 2.0  # start from the centre of the eight
+
+        progress = ((2 * pi) / self.period) * time_delta
 
         x = self.radius * sin(progress) * cos(progress)
         y = self.radius * sin(progress)
@@ -143,6 +144,10 @@ class ThymioController:
 
     def run(self):
         """Controls the Thymio."""
+
+        # Sleep until the first time update is received
+        self.sleep()
+
         start_time = rospy.Time.now()
         estimated_pose = None
 
@@ -161,11 +166,16 @@ class ThymioController:
 
                 self.sleep()
 
+            # Check if the target velocity exceeds the theoretical max speed for the kinematics
+            # if abs(self.vel_msg.linear.x) > 0.14:
+            #     print("Going too fast, kinematics undefined!", elapsed_time.to_sec(), self.vel_msg.linear.x)
+
             estimated_pose = next_pose
 
     def sleep(self):
         """Sleep until next step and if rospy is shutdown launch an exception"""
         self.rate.sleep()
+
         if rospy.is_shutdown():
             raise rospy.ROSInterruptException
 
