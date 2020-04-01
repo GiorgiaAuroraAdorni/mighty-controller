@@ -4,10 +4,22 @@ import rospy
 from math import *
 from geometry_msgs.msg import *
 from nav_msgs.msg import Odometry
+from sensor_msgs.msg import Range
 from tf.transformations import euler_from_quaternion
+
+from pid import PID
 
 
 class ThymioController:
+
+    # Max range of the Thymio's proximity sensors
+    OUT_OF_RANGE = 0.12
+
+    # Target distance of the robot from the wall
+    TARGET_DISTANCE = OUT_OF_RANGE - 0.01
+
+    # Target difference between the distance measured by the two distance sensors
+    TARGET_ERROR = 0.001
 
     def __init__(self):
         # Creates a node with name 'thymio_controller' and make sure it is a
@@ -26,6 +38,13 @@ class ThymioController:
         # when a message of type Pose is received.
         self.pose_subscriber = rospy.Subscriber('/%s/odom' % self.name, Odometry, self.log_odometry)
 
+        self.proximity_sensors = ["left", "center_left", "center", "center_right", "right"]
+        self.proximity_subscribers = [
+            rospy.Subscriber('/%s/proximity/%s' % (self.name, sensor), Range, self.update_proximity, sensor)
+            for sensor in self.proximity_sensors
+        ]
+        self.proximity_distances = dict()
+
         # initialize pose to (X=0, Y=0, theta=0)
         self.pose = Pose()
 
@@ -40,8 +59,7 @@ class ThymioController:
         self.rate = rospy.Rate(frequency)
         self.step = rospy.Duration.from_sec(1.0 / frequency)  # 1/60 sec
 
-        self.radius = 1
-        self.period = 30
+        self.rotation_controller = PID(5, 0, 1)
 
     def human_readable_pose2d(self, pose):
         """Converts pose message to a human readable pose tuple.
@@ -82,6 +100,9 @@ class ThymioController:
             msg=self.name + ' (%.3f, %.3f, %.3f) ' % printable_pose  # message
         )
 
+    def update_proximity(self, data, sensor):
+        self.proximity_distances[sensor] = data.range
+
     def euclidean_distance(self, new_pose, estimated_pose):
         """
         :param new_pose:
@@ -90,17 +111,6 @@ class ThymioController:
         """
         return sqrt(pow((new_pose.x - estimated_pose.x), 2) +
                     pow((new_pose.y - estimated_pose.y), 2))
-
-    def linear_vel(self, new_pose, estimated_pose):
-        """
-        :param new_pose
-        :param estimated_pose
-        :return: clipped linear velocity
-        """
-        distance = self.euclidean_distance(new_pose, estimated_pose)
-        velocity = distance / self.step.to_sec()
-
-        return velocity
 
     def angular_difference(self, estimated_pose, new_pose):
         """
@@ -111,66 +121,66 @@ class ThymioController:
         """
         return atan2(sin(new_pose.theta - estimated_pose.theta), cos(new_pose.theta - estimated_pose.theta))
 
-    def angular_vel(self, new_pose, estimated_pose):
-        """
-
-        :param new_pose:
-        :param estimated_pose:
-        :return: the angular velocity computed using the angle difference
-        """
-        ang_difference = self.angular_difference(estimated_pose, new_pose)
-        velocity = ang_difference / self.step.to_sec()
-
-        return velocity
-
-    def compute_pose(self, time_delta):
-        """
-        :param time_delta:
-        :return:
-        """
-
-        progress = ((2 * pi) / self.period) * time_delta
-
-        x = self.radius * sin(progress) * cos(progress)
-        y = self.radius * sin(progress)
-
-        dx = self.radius * (cos(progress) ** 2 - sin(progress) ** 2)
-        dy = self.radius * cos(progress)
-        theta = atan2(dy, dx)
-
-        pose = Pose2D(x, y, theta)
-
-        return pose
-
     def run(self):
         """Controls the Thymio."""
 
-        # Sleep until the first time update is received
-        self.sleep()
+        # Sleep until the first update is received for the clock and each proximity sensor
+        while not rospy.is_shutdown():
+            self.sleep()
 
-        start_time = rospy.Time.now()
-        estimated_pose = None
+            if len(self.proximity_distances) == len(self.proximity_sensors):
+                break
+
+        # Start moving straight
+        while not rospy.is_shutdown():
+            # Check if the robot reached the wall. Waiting until two sensors have the wall in range ensures that one of
+            # them is the center_left or center_right one, allowing us to detect in which direction we should turn.
+            distances = self.proximity_distances.values()
+
+            if sum(distance < self.TARGET_DISTANCE for distance in distances) >= 2:
+                break
+
+            # Just move with constant velocity
+            self.vel_msg.linear.x = 0.3
+            self.vel_msg.angular.z = 0
+
+            self.velocity_publisher.publish(self.vel_msg)
+
+            self.sleep()
+
+        # Stop the robot
+        self.stop()
+
+        # Align with respect to the wall
+        count = 0
 
         while not rospy.is_shutdown():
-            elapsed_time = rospy.Time.now() - start_time
+            # Use the difference between the distances measured by the two proximity sensors to detect whether the robot
+            # is facing the wall
+            target_diff = 0
+            diff = self.proximity_distances["center_left"] - self.proximity_distances["center_right"]
 
-            next_time = (elapsed_time + self.step).to_sec()
+            error = target_diff - diff
 
-            next_pose = self.compute_pose(next_time)
+            # Ensure that the error stays below target for a few cycles to smooth out the noise a bit
+            if abs(error) <= self.TARGET_ERROR:
+                count += 1
+            else:
+                count = 0
 
-            if estimated_pose is not None:
-                self.vel_msg.linear.x = self.linear_vel(next_pose, estimated_pose)
-                self.vel_msg.angular.z = self.angular_vel(next_pose, estimated_pose)
+            if count == 3:
+                break
 
-                self.velocity_publisher.publish(self.vel_msg)
+            # Use the PID controller to minimize the distance difference
+            self.vel_msg.linear.x = 0.0
+            self.vel_msg.angular.z = self.rotation_controller.step(error, self.step.to_sec())
 
-                self.sleep()
+            self.velocity_publisher.publish(self.vel_msg)
 
-            # Check if the target velocity exceeds the theoretical max speed for the kinematics
-            # if abs(self.vel_msg.linear.x) > 0.14:
-            #     print("Going too fast, kinematics undefined!", elapsed_time.to_sec(), self.vel_msg.linear.x)
+            self.sleep()
 
-            estimated_pose = next_pose
+        # Final pose reached
+        self.stop()
 
     def sleep(self):
         """Sleep until next step and if rospy is shutdown launch an exception"""
