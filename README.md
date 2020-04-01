@@ -15,11 +15,23 @@
 - ROS
 - Gazebo
 
-#### Installation and usage
+#### Installation
+
+Clone the repository
 
 ```sh
+$ cd ~/catkin_ws/src
 $ git clone https://github.com/GiorgiaAuroraAdorni/mighty-controller
 ```
+
+build ROS packages and update the environment
+
+```sh
+$ catkin build
+$ re.
+```
+
+#### Usage
 
 The execution of **Gazebo** with the simulated Thymio can be started by running:
 
