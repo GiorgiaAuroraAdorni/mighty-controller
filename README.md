@@ -45,7 +45,7 @@ $ roslaunch thymio_course_skeleton thymio_gazebo_bringup.launch name:=thymio10 w
    In order to see the Thymio moving in Gazebo run the command:
 
    ```sh
-   $ roslaunch mighty_controller eight_trajectory_controller.launch robot_name:=thymio10
+   $ roslaunch mighty-controller eight_trajectory_controller.launch robot_name:=thymio10
    ```
 
    The execution of this task can be stopped by terminating the controller with `Ctrl + C`.
