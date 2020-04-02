@@ -1,0 +1,7 @@
+<launch>
+<arg name="robot_name" default="thymio10"/>
+
+<node name="task3_controller" pkg="mighty-controller" type="task3_controller.py" output="screen">
+    <param name="robot_name" value="$(arg robot_name)"/>
+</node>
+</launch>

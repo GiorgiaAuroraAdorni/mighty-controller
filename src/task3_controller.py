@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-import rospy
 from math import *
+
+import rospy
 from geometry_msgs.msg import *
 from nav_msgs.msg import Odometry
+from pid import PID
 from sensor_msgs.msg import Range
 from tf.transformations import euler_from_quaternion
-
-from pid import PID
 
 
 class ThymioController:
@@ -16,7 +16,7 @@ class ThymioController:
     OUT_OF_RANGE = 0.12
 
     # Target distance of the robot from the wall
-    TARGET_DISTANCE = OUT_OF_RANGE - 0.01
+    TARGET_DISTANCE = OUT_OF_RANGE - 0.02
 
     # Target difference between the distance measured by the two distance sensors
     TARGET_ERROR = 0.001
@@ -38,7 +38,7 @@ class ThymioController:
         # when a message of type Pose is received.
         self.pose_subscriber = rospy.Subscriber('/%s/odom' % self.name, Odometry, self.log_odometry)
 
-        self.proximity_sensors = ["left", "center_left", "center", "center_right", "right"]
+        self.proximity_sensors = ["left", "center_left", "center", "center_right", "right", "rear_left", "rear_right"]
         self.proximity_subscribers = [
             rospy.Subscriber('/%s/proximity/%s' % (self.name, sensor), Range, self.update_proximity, sensor)
             for sensor in self.proximity_sensors
@@ -135,9 +135,9 @@ class ThymioController:
         while not rospy.is_shutdown():
             # Check if the robot reached the wall. Waiting until two sensors have the wall in range ensures that one of
             # them is the center_left or center_right one, allowing us to detect in which direction we should turn.
-            distances = self.proximity_distances.values()
+            front_sensors = ["left", "center_left", "center", "center_right", "right"]
 
-            if sum(distance < self.TARGET_DISTANCE for distance in distances) >= 2:
+            if sum(self.proximity_distances[sensor] < self.TARGET_DISTANCE for sensor in front_sensors) >= 2:
                 break
 
             # Just move with constant velocity
@@ -151,16 +151,43 @@ class ThymioController:
         # Stop the robot
         self.stop()
 
-        # Align with respect to the wall
-        count = 0
+        # Use the difference between the distances measured by the two proximity sensors to detect whether the robot
+        # is facing the wall
+        diff = self.proximity_distances["center_left"] - self.proximity_distances["center_right"]
 
+        constant = 1
+        if diff < 0:
+            constant = -1
+
+        # TODO
+        #  - [ ] Iteri girando in quella direzione fino a che uno dei sensori dietro non e in range
+        # Start rotating
+        while not rospy.is_shutdown():
+            # Check if the back sensor are in range, in this case start the alignment
+            back_sensors = ["rear_left", "rear_right"]
+            if sum(self.proximity_distances[sensor] < self.TARGET_DISTANCE for sensor in back_sensors) > 0:
+                break
+
+            # Rotate with constant velocity
+            self.vel_msg.linear.x = 0
+            self.vel_msg.angular.z = constant * 0.3
+
+            self.velocity_publisher.publish(self.vel_msg)
+
+            self.sleep()
+
+        print('align')
+
+        # TODO
+        #  - [ ] Dopo di che continui con la 158 ma usando i sensori dietro Rearleft e bla bla
+        count = 0
         while not rospy.is_shutdown():
             # Use the difference between the distances measured by the two proximity sensors to detect whether the robot
             # is facing the wall
             target_diff = 0
-            diff = self.proximity_distances["center_left"] - self.proximity_distances["center_right"]
+            diff = self.proximity_distances["rear_left"] - self.proximity_distances["rear_right"]
 
-            error = target_diff - diff
+            error =  diff - target_diff
 
             # Ensure that the error stays below target for a few cycles to smooth out the noise a bit
             if abs(error) <= self.TARGET_ERROR:
@@ -178,6 +205,14 @@ class ThymioController:
             self.velocity_publisher.publish(self.vel_msg)
 
             self.sleep()
+
+
+        #  - [ ] Poi ti allontani a 2 metri ma il sensore non prende percio
+        #  - [ ] usi odometry e calcoli la coordinata a chi vuoi arrivare
+        #  - [ ] poi fai un PID che minimizza l errore rispetto a quella coordinata
+
+        # Align with respect to the wall
+
 
         # Final pose reached
         self.stop()
