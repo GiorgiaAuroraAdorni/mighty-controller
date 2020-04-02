@@ -38,6 +38,7 @@ class ThymioController:
         # when a message of type Pose is received.
         self.pose_subscriber = rospy.Subscriber('/%s/odom' % self.name, Odometry, self.log_odometry)
 
+        # Subscribe to the updates of the proximity sensors.
         self.proximity_sensors = ["left", "center_left", "center", "center_right", "right"]
         self.proximity_subscribers = [
             rospy.Subscriber('/%s/proximity/%s' % (self.name, sensor), Range, self.update_proximity, sensor)
@@ -59,6 +60,8 @@ class ThymioController:
         self.rate = rospy.Rate(frequency)
         self.step = rospy.Duration.from_sec(1.0 / frequency)  # 1/60 sec
 
+        # PID controller to control the angular velocity, with the objective of minimizing the difference in distance
+        # measured by the two center-left/-right proximity sensors.
         self.rotation_controller = PID(5, 0, 1)
 
     def human_readable_pose2d(self, pose):
