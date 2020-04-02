@@ -19,7 +19,8 @@ class ThymioController:
     TARGET_DISTANCE = OUT_OF_RANGE - 0.02
 
     # Target difference between the distance measured by the two distance sensors
-    TARGET_ERROR = 0.001
+    TARGET_ANGLE_ERROR = 0.001
+    TARGET_DISTANCE_ERROR = 0.01
 
     def __init__(self):
         # Creates a node with name 'thymio_controller' and make sure it is a
@@ -46,7 +47,7 @@ class ThymioController:
         self.proximity_distances = dict()
 
         # initialize pose to (X=0, Y=0, theta=0)
-        self.pose = Pose()
+        self.pose = Pose2D()
 
         # initialize linear and angular velocities to 0
         self.vel_msg = Twist()
@@ -60,6 +61,7 @@ class ThymioController:
         self.step = rospy.Duration.from_sec(1.0 / frequency)  # 1/60 sec
 
         self.rotation_controller = PID(5, 0, 1)
+        self.move_straight_controller = PID(3, 0, 0.3)
 
     def human_readable_pose2d(self, pose):
         """Converts pose message to a human readable pose tuple.
@@ -78,7 +80,7 @@ class ThymioController:
         # convert quaternion rotation to euler rotation
         roll, pitch, yaw = euler_from_quaternion(quaternion)
 
-        result = (
+        result = Pose2D(
             pose.position.x,  # x position
             pose.position.y,  # y position
             yaw  # theta angle
@@ -88,16 +90,13 @@ class ThymioController:
 
     def log_odometry(self, data):
         """Updates robot pose and velocities, and logs pose to console."""
-
-        self.pose = data.pose.pose
         self.vel_msg = data.twist.twist
-
-        printable_pose = self.human_readable_pose2d(self.pose)
+        self.pose = self.human_readable_pose2d(data.pose.pose)
 
         # log robot's pose
         rospy.loginfo_throttle(
             period=5,  # log every 10 seconds
-            msg=self.name + ' (%.3f, %.3f, %.3f) ' % printable_pose  # message
+            msg=self.name + ' (%.3f, %.3f, %.3f) ' % (self.pose.x, self.pose.y, self.pose.theta)  # message
         )
 
     def update_proximity(self, data, sensor):
@@ -120,6 +119,21 @@ class ThymioController:
         :return: Angle difference
         """
         return atan2(sin(new_pose.theta - estimated_pose.theta), cos(new_pose.theta - estimated_pose.theta))
+
+    # FIXME
+    def get_control(self):
+        return Twist(
+            linear=Vector3(
+                .2,  # moves forward .2 m/s
+                .0,
+                .0,
+            ),
+            angular=Vector3(
+                .0,
+                .0,
+                .0
+            )
+        )
 
     def run(self):
         """Controls the Thymio."""
@@ -152,15 +166,13 @@ class ThymioController:
         self.stop()
 
         # Use the difference between the distances measured by the two proximity sensors to detect whether the robot
-        # is facing the wall
+        # is facing the wall and decide in which direction turn the robot
         diff = self.proximity_distances["center_left"] - self.proximity_distances["center_right"]
 
         constant = 1
         if diff < 0:
             constant = -1
 
-        # TODO
-        #  - [ ] Iteri girando in quella direzione fino a che uno dei sensori dietro non e in range
         # Start rotating
         while not rospy.is_shutdown():
             # Check if the back sensor are in range, in this case start the alignment
@@ -176,10 +188,6 @@ class ThymioController:
 
             self.sleep()
 
-        print('align')
-
-        # TODO
-        #  - [ ] Dopo di che continui con la 158 ma usando i sensori dietro Rearleft e bla bla
         count = 0
         while not rospy.is_shutdown():
             # Use the difference between the distances measured by the two proximity sensors to detect whether the robot
@@ -187,10 +195,10 @@ class ThymioController:
             target_diff = 0
             diff = self.proximity_distances["rear_left"] - self.proximity_distances["rear_right"]
 
-            error =  diff - target_diff
+            error = diff - target_diff
 
             # Ensure that the error stays below target for a few cycles to smooth out the noise a bit
-            if abs(error) <= self.TARGET_ERROR:
+            if abs(error) <= self.TARGET_ANGLE_ERROR:
                 count += 1
             else:
                 count = 0
@@ -206,13 +214,30 @@ class ThymioController:
 
             self.sleep()
 
-
+        # TODO
         #  - [ ] Poi ti allontani a 2 metri ma il sensore non prende percio
         #  - [ ] usi odometry e calcoli la coordinata a chi vuoi arrivare
-        #  - [ ] poi fai un PID che minimizza l errore rispetto a quella coordinata
+        #  - [ ] PID che minimizza l errore rispetto a quella coordinata
 
-        # Align with respect to the wall
+        wall_distance = self.proximity_distances["rear_left"]
+        target_distance = 2.0 - wall_distance
 
+        target_pose = self.pose
+        target_pose.x += target_distance * cos(self.pose.theta)
+        target_pose.y += target_distance * sin(self.pose.theta)
+
+        while not rospy.is_shutdown():
+            error = self.euclidean_distance(target_pose, self.pose)
+
+            if error <= self.TARGET_DISTANCE_ERROR:
+                break
+
+            self.vel_msg.linear.x = self.move_straight_controller.step(error, self.step.to_sec())
+            self.vel_msg.angular.z = 0.0
+
+            self.velocity_publisher.publish(self.vel_msg)
+
+            self.sleep()
 
         # Final pose reached
         self.stop()
