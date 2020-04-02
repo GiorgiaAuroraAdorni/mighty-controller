@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+from copy import copy
 from math import *
 
 import rospy
@@ -61,7 +61,7 @@ class ThymioController:
         self.step = rospy.Duration.from_sec(1.0 / frequency)  # 1/60 sec
 
         self.rotation_controller = PID(5, 0, 1)
-        self.move_straight_controller = PID(3, 0, 0.3)
+        self.move_straight_controller = PID(3, 0, 0.3, max_out=0.3)
 
     def human_readable_pose2d(self, pose):
         """Converts pose message to a human readable pose tuple.
@@ -222,7 +222,7 @@ class ThymioController:
         wall_distance = self.proximity_distances["rear_left"]
         target_distance = 2.0 - wall_distance
 
-        target_pose = self.pose
+        target_pose = copy(self.pose)
         target_pose.x += target_distance * cos(self.pose.theta)
         target_pose.y += target_distance * sin(self.pose.theta)
 
