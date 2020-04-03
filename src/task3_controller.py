@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 from copy import copy
-from math import *
+from math import sin, cos
 
 import rospy
-from geometry_msgs.msg import *
-from nav_msgs.msg import Odometry
 from pid import PID
 from sensor_msgs.msg import Range
-from tf.transformations import euler_from_quaternion
+from thymio_controller import ThymioController
 
 
-class ThymioController:
+class Task3(ThymioController):
 
     # Max range of the Thymio's proximity sensors
     OUT_OF_RANGE = 0.12
@@ -23,22 +21,9 @@ class ThymioController:
     TARGET_DISTANCE_ERROR = 0.01
 
     def __init__(self):
-        # Creates a node with name 'thymio_controller' and make sure it is a
-        # unique node (using anonymous=True).
-        rospy.init_node('thymio_controller', anonymous=True)
+        super(Task3, self).__init__()
 
-        self.name = rospy.get_param('~robot_name')
-
-        # log robot name to console
-        rospy.loginfo('Controlling %s' % self.name)
-
-        # Velocity publisher which will publish to the topic '/~robot_name/cmd_vel'.
-        self.velocity_publisher = rospy.Publisher('/%s/cmd_vel' % self.name, Twist, queue_size=10)
-
-        # Pose subscriber to the topic '/turtle1/pose'. self.update_pose is called
-        # when a message of type Pose is received.
-        self.pose_subscriber = rospy.Subscriber('/%s/odom' % self.name, Odometry, self.log_odometry)
-
+        # Subscribe to the updates of the proximity sensors.
         self.proximity_sensors = ["left", "center_left", "center", "center_right", "right", "rear_left", "rear_right"]
         self.proximity_subscribers = [
             rospy.Subscriber('/%s/proximity/%s' % (self.name, sensor), Range, self.update_proximity, sensor)
@@ -46,79 +31,11 @@ class ThymioController:
         ]
         self.proximity_distances = dict()
 
-        # initialize pose to (X=0, Y=0, theta=0)
-        self.pose = Pose2D()
-
-        # initialize linear and angular velocities to 0
-        self.vel_msg = Twist()
-
-        # tell ros to call stop when the program is terminated
-        rospy.on_shutdown(self.stop)
-
-        # set node update frequency in Hz
-        frequency = 20.0
-        self.rate = rospy.Rate(frequency)
-        self.step = rospy.Duration.from_sec(1.0 / frequency)  # 1/60 sec
-
         self.rotation_controller = PID(5, 0, 1)
         self.move_straight_controller = PID(3, 0, 0.3, max_out=0.3)
 
-    def human_readable_pose2d(self, pose):
-        """Converts pose message to a human readable pose tuple.
-        :param pose:
-        :return:
-        """
-
-        # create a quaternion from the pose
-        quaternion = (
-            pose.orientation.x,
-            pose.orientation.y,
-            pose.orientation.z,
-            pose.orientation.w
-        )
-
-        # convert quaternion rotation to euler rotation
-        roll, pitch, yaw = euler_from_quaternion(quaternion)
-
-        result = Pose2D(
-            pose.position.x,  # x position
-            pose.position.y,  # y position
-            yaw  # theta angle
-        )
-
-        return result
-
-    def log_odometry(self, data):
-        """Updates robot pose and velocities, and logs pose to console."""
-        self.vel_msg = data.twist.twist
-        self.pose = self.human_readable_pose2d(data.pose.pose)
-
-        # log robot's pose
-        rospy.loginfo_throttle(
-            period=5,  # log every 10 seconds
-            msg=self.name + ' (%.3f, %.3f, %.3f) ' % (self.pose.x, self.pose.y, self.pose.theta)  # message
-        )
-
     def update_proximity(self, data, sensor):
         self.proximity_distances[sensor] = data.range
-
-    def euclidean_distance(self, new_pose, estimated_pose):
-        """
-        :param new_pose:
-        :param estimated_pose:
-        :return: Euclidean distance between current pose and the goal pose
-        """
-        return sqrt(pow((new_pose.x - estimated_pose.x), 2) +
-                    pow((new_pose.y - estimated_pose.y), 2))
-
-    def angular_difference(self, estimated_pose, new_pose):
-        """
-
-        :param estimated_pose:
-        :param new_pose:
-        :return: Angle difference
-        """
-        return atan2(sin(new_pose.theta - estimated_pose.theta), cos(new_pose.theta - estimated_pose.theta))
 
     def run(self):
         """Controls the Thymio."""
@@ -224,21 +141,9 @@ class ThymioController:
         # Final pose reached
         self.stop()
 
-    def sleep(self):
-        """Sleep until next step and if rospy is shutdown launch an exception"""
-        self.rate.sleep()
-
-        if rospy.is_shutdown():
-            raise rospy.ROSInterruptException
-
-    def stop(self):
-        """Stops our robot"""
-        self.velocity_publisher.publish(Twist())
-        self.sleep()
-
 
 if __name__ == '__main__':
-    controller = ThymioController()
+    controller = Task3()
 
     try:
         controller.run()
