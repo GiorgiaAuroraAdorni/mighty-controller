@@ -120,21 +120,6 @@ class ThymioController:
         """
         return atan2(sin(new_pose.theta - estimated_pose.theta), cos(new_pose.theta - estimated_pose.theta))
 
-    # FIXME
-    def get_control(self):
-        return Twist(
-            linear=Vector3(
-                .2,  # moves forward .2 m/s
-                .0,
-                .0,
-            ),
-            angular=Vector3(
-                .0,
-                .0,
-                .0
-            )
-        )
-
     def run(self):
         """Controls the Thymio."""
 
@@ -214,11 +199,8 @@ class ThymioController:
 
             self.sleep()
 
-        # TODO
-        #  - [ ] Poi ti allontani a 2 metri ma il sensore non prende percio
-        #  - [ ] usi odometry e calcoli la coordinata a chi vuoi arrivare
-        #  - [ ] PID che minimizza l errore rispetto a quella coordinata
-
+        # Move that robot in such a way its reference frame is as close as possible to a point that is 2 meters
+        # from the wall, in this case relying on odometry, and then stop it
         wall_distance = self.proximity_distances["rear_left"]
         target_distance = 2.0 - wall_distance
 

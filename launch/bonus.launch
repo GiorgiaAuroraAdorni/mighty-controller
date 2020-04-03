@@ -1,0 +1,12 @@
+<launch>
+    <node name="task4_1_controller" pkg="mighty-controller" type="task4_controller.py" output="screen">
+        <param name="robot_name" value="thymio10"/>
+    </node>
+    <include file="$(find thymioid_description)/launch/gazebo_bringup.launch">
+        <arg name="name" value="thymio11"/>
+        <arg name="pose" value="-x 2 -y 2 -z 0 -Y -1.5"/>
+    </include>
+    <node name="task4_2_controller" pkg="mighty-controller" type="task4_controller.py" output="screen">
+        <param name="robot_name" value="thymio11"/>
+    </node>
+</launch>
