@@ -25,11 +25,11 @@ class Task3(ThymioController):
 
         # Subscribe to the updates of the proximity sensors.
         self.proximity_sensors = ["left", "center_left", "center", "center_right", "right", "rear_left", "rear_right"]
+        self.proximity_distances = dict()
         self.proximity_subscribers = [
             rospy.Subscriber('/%s/proximity/%s' % (self.name, sensor), Range, self.update_proximity, sensor)
             for sensor in self.proximity_sensors
         ]
-        self.proximity_distances = dict()
 
         self.rotation_controller = PID(5, 0, 1)
         self.move_straight_controller = PID(3, 0, 0.3, max_out=0.3)

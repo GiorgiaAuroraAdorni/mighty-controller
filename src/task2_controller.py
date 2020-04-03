@@ -21,11 +21,11 @@ class Task2(ThymioController):
 
         # Subscribe to the updates of the proximity sensors.
         self.proximity_sensors = ["left", "center_left", "center", "center_right", "right"]
+        self.proximity_distances = dict()
         self.proximity_subscribers = [
             rospy.Subscriber('/%s/proximity/%s' % (self.name, sensor), Range, self.update_proximity, sensor)
             for sensor in self.proximity_sensors
         ]
-        self.proximity_distances = dict()
 
         # PID controller to control the angular velocity, with the objective of minimizing the difference in distance
         # measured by the two center-left/-right proximity sensors.
