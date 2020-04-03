@@ -1,7 +1,7 @@
 <launch>
 <arg name="robot_name" default="thymio10"/>
 
-<node name="eight_trajectory_controller" pkg="mighty-controller" type="eight_trajectory_controller.py" output="screen">
+<node name="task1_controller" pkg="mighty-controller" type="task1_controller.py" output="screen">
     <param name="robot_name" value="$(arg robot_name)"/>
 </node>
 </launch>

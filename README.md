@@ -41,11 +41,12 @@ $ roslaunch thymio_course_skeleton thymio_gazebo_bringup.launch name:=thymio10 w
 
 ##### Tasks
 
-1. The file `eight_trajectory_controller.launch` is a launch file that contains the instruction to configure the node `eight_trajectory_controller.py`, that implements an open loop controller to move the MyT along an "8" trajectory.  
+1. The file `task1_controller.launch` is a launch file that contains the instruction to configure the node
+ `task1_controller.py`, that implements an open loop controller to move the MyT along an "8" trajectory.  
    In order to see the Thymio moving in Gazebo run the command:
 
    ```sh
-   $ roslaunch mighty-controller eight_trajectory_controller.launch
+   $ roslaunch mighty-controller task1_controller.launch
    ```
 
    The execution of this task can be stopped by terminating the controller with `Ctrl + C`.
