@@ -7,8 +7,6 @@
 
 **Elia Cereda** - elia.cereda@usi.ch  [EliaCereda](https://github.com/EliaCereda)
 
-#### Brief
-
 #### Prerequisites
 
 - Python 2.0 
@@ -42,14 +40,15 @@ $ roslaunch thymio_course_skeleton thymio_gazebo_bringup.launch name:=thymio10 w
 ##### Tasks
 
 1. The file `task1_controller.launch` is a launch file that contains the instruction to configure the node
- `task1_controller.py`, that implements an open loop controller to move the MyT along an "8" trajectory.  
+   `task1_controller.py`, that implements an open loop controller to move the MyT along an "8" trajectory.  
    In order to see the Thymio moving in Gazebo run the command:
 
    ```sh
    $ roslaunch mighty-controller task1_controller.launch
    ```
 
-   The execution of this task can be stopped by terminating the controller with `Ctrl + C`.
+   The execution of this task can be stopped by terminating the controller with `Ctrl + C`.  
+   A demonstration of the robot behavior can be found at the following link: [task 1](https://youtu.be/EYP36fpk4nQ).
 
 2. The file `task2_controller.launch` is a launch file that contains the instruction to configure the node `task2_controler.py`, that moves the MyT straight ahead until it is close to an obstacle (wal) without hitting it (using proximity sensors). Then turns the robot in place in such a way that the robot's x axis should be orthogonal to the wall.  
    Run gazebo using the world 'wall':
@@ -60,20 +59,21 @@ $ roslaunch thymio_course_skeleton thymio_gazebo_bringup.launch name:=thymio10 w
 
    To execute the task, run the command:
 
-3. ```sh
+   ```sh
    $ roslaunch mighty-controller task2_controller.launch
    ```
 
    The execution of this task can be stopped by terminating the controller with `Ctrl + C`.
 
-4. The file `compulsory.launch` is a launch file that contains the instruction to configure the node `task3_controller.py`, that move the MyT straight ahead until it is close to an obstacle (wal) without hitting it (using proximity sensors). Then turns the robot in such a way that it is facing opposite to the wall, then move and stop in such a way that its reference frame is as close as possible to a point that is 2 meters from the wall, in this case relying on odometry.  
+3. The file `compulsory.launch` is a launch file that contains the instruction to configure the node `task3_controller.py`, that move the MyT straight ahead until it is close to an obstacle without hitting it, using the proximity sensors. Then turns the robot in such a way that it is facing opposite to the wall, then move and stop in such a way that its reference frame is as close as possible to a point that is 2 meters from the wall, in this case relying on odometry.  
    In order to execute the final task:
 
    ```sh
    $ roslaunch mighty-controller compulsory.launch 
    ```
 
-   The execution of this task can be stopped by terminating the controller with `Ctrl + C`.
+   The execution of this task can be stopped by terminating the controller with `Ctrl + C`.  
+   A demonstration of the robot behavior can be found at the following link: [compulsory task](https://youtu.be/feHJWSdJr3k).
 
 ##### Bonus Tasks
 
@@ -91,15 +91,16 @@ $ roslaunch thymio_course_skeleton thymio_gazebo_bringup.launch name:=thymio10 w
    $ roslaunch mighty-controller task4_controller.launch
    ```
 
-   A demonstration of the robot behavior, simulatede for 100 seconds, can be found at the following link: [http bla bla](link vero qui).  
+
    The execution of this task can be stopped by terminating the controller with `Ctrl + C`.
 
-2. The file `bonus.launch` is a launch file that contains the instruction to configure the node `task5_controler.py`, that executes the previous task, but this time simulating two or more robots at once.   
+2. The file `bonus.launch` is a launch file that contains the instruction to launch the same node of the previous task: it executes the `task4._controller.py`, but this time simulating two or more robots at once.   
    In order to see the Thymio moving in Gazebo run the command:
 
    ```sh
    $ roslaunch mighty-controller bonus.launch
    ```
 
-   A demonstration of the robots behavior, simulatede for 100 seconds, can be found at the following link: [http bla bla](link vero qui).  
-   The execution of this task can be stopped by terminating the controller with `Ctrl + C`.
+   The execution of this task can be stopped by terminating the controller with `Ctrl + C`.  
+   A demonstration of the robot behavior can be found at the following link: [bonus task](https://youtu.be/ErVaC6nk9DU).
+
