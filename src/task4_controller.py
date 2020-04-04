@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import random
+import time
 
 import rospy
 from pid import PID
@@ -16,11 +17,17 @@ class Task4(ThymioController):
     # Target distance of the robot from the wall
     TARGET_DISTANCE = OUT_OF_RANGE - 0.01
 
+    # Minimum distance from the wall to be able to rotate in place
+    TOO_CLOSE = 0.05
+
     # Target difference between the distance measured by the two distance sensors
     TARGET_ERROR = 0.001
 
     def __init__(self):
         super(Task4, self).__init__()
+
+        # Ensure that different robot have different seeds even if initialised at the same time
+        random.seed(hash((time.time(), self.name)))
 
         # Subscribe to the updates of the proximity sensors.
         self.front_sensors = ["center_left", "center", "center_right"]
@@ -59,6 +66,22 @@ class Task4(ThymioController):
 
                 # Just move with constant velocity
                 self.vel_msg.linear.x = 0.3
+                self.vel_msg.angular.z = 0
+
+                self.velocity_publisher.publish(self.vel_msg)
+
+                self.sleep()
+
+            # Stop the robot
+            self.stop()
+
+            # Check if the robot didn't stop fast enough and hit the wall
+            while not rospy.is_shutdown():
+                if all(self.proximity_distances[sensor] > self.TOO_CLOSE for sensor in self.front_sensors):
+                    break
+
+                # Back up slowly to clear the obstacle
+                self.vel_msg.linear.x = -0.1
                 self.vel_msg.angular.z = 0
 
                 self.velocity_publisher.publish(self.vel_msg)

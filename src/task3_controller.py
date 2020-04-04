@@ -17,7 +17,7 @@ class Task3(ThymioController):
     TARGET_DISTANCE = OUT_OF_RANGE - 0.02
 
     # Target difference between the distance measured by the two distance sensors
-    TARGET_ANGLE_ERROR = 0.001
+    TARGET_ANGLE_ERROR = 0.005
     TARGET_DISTANCE_ERROR = 0.01
 
     def __init__(self):
@@ -36,6 +36,19 @@ class Task3(ThymioController):
 
     def update_proximity(self, data, sensor):
         self.proximity_distances[sensor] = data.range
+
+    def signed_distance(self, new_pose, estimated_pose):
+        """
+        :param new_pose:
+        :param estimated_pose:
+        :return: Signed distance between current pose and the goal pose, along the current theta of the robot
+        """
+        theta = estimated_pose.theta
+
+        a = estimated_pose.x * cos(theta) + estimated_pose.y * sin(theta)
+        b = new_pose.x * cos(theta) + new_pose.y * sin(theta)
+
+        return b - a
 
     def run(self):
         """Controls the Thymio."""
@@ -126,7 +139,7 @@ class Task3(ThymioController):
         target_pose.y += target_distance * sin(self.pose.theta)
 
         while not rospy.is_shutdown():
-            error = self.euclidean_distance(target_pose, self.pose)
+            error = self.signed_distance(target_pose, self.pose)
 
             if error <= self.TARGET_DISTANCE_ERROR:
                 break
